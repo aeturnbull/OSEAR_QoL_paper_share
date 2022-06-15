@@ -1,0 +1,107 @@
+---
+title: "HEG vs QoL models"
+author: "Alison E. Turnbull"
+date: '2022-06-15'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r loading df tab1 and tab2 from March 28, echo=FALSE}
+load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
+```
+
+```{r packages, include=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(plyr)
+library(dplyr)
+library(janitor)
+library(table1)
+library(finalfit)
+```
+
+```{r, number of independent i/adls, echo=FALSE, include=FALSE}
+ind_ADL<- df %>%
+        select(starts_with("mo6_")) %>%
+          #filter(!is.na(mo6_bathing)) %>%      # There are 26 people missing data on ADL independence at 6 months
+          select(-c(mo6_continence, mo6_laundry_fct)) %>%
+            dplyr::mutate(across(everything(), ~ifelse(.x =="Independent", 1, 0))) %>%
+                rowwise() %>%
+                    dplyr::mutate(n_ind=sum(c_across(cols=everything())))
+
+```
+
+
+
+
+```{r Expectation gap vs QoL figure, echo=FALSE, include=FALSE}
+
+#Calculating the health expectation gap (HEG)
+df <- df %>%
+        mutate(heg=eqol_vas - exp_vas)
+
+## Adding number of IADLs performed independently at 6 months to the dataframe
+df<-cbind(df, ind_ADL$n_ind)
+names(df)[154]<-"n_iadl_independent"
+
+# Creating a long version of dataframe
+df_long <- df %>%
+            select(id, heg, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+# Re-labeling domain names
+df_long$domain<-fct_recode(df_long$domain, 'Physical health' ="whoqol_d1_100", 'Psychological health' ="whoqol_d2_100", 'Social relationships' = "whoqol_d3_100", 'Environment health' ="whoqol_d4_100")
+  
+
+# Faceted scatterplot
+HEG_vs_QoL<-df_long %>%
+                    ggplot(aes(x=heg, y=score)) + 
+                        geom_jitter(width = 1, height=1, alpha=.5) +
+                          geom_smooth(span=.8) +
+                           geom_vline(xintercept = 0, linetype="dashed") + 
+                            labs(title="Health Expectation Gap vs Quality of Life (N = 139)", 
+                            x="Health expectation gap at 6 months", 
+                            y="WHOQoL-BREF domain score at 6 months") + 
+                              scale_x_continuous(limits=c(-100, 50), breaks=c(-100, -75, -50, -25, 0, 25, 50)) +
+                              scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
+                                theme_bw() +
+                                  theme(aspect.ratio = .8) +
+                                    facet_wrap(~domain)
+```
+
+
+```{r Fitting a spline for HEG, echo=FALSE, include=FALSE}
+library(splines)
+library(npreg)
+
+# Remove missing data
+temp1<-df %>%
+          drop_na(heg, whoqol_d1_100)
+
+# Fit a smoothing spline for the relationship between HEG and WHOQOL_d1
+mod.ss<-with(temp1, ss(heg, whoqol_d1_100))
+mod.ss
+
+# Smoothing Parameter  spar = 0.4073565   lambda = 5.227771e-05
+# Equivalent Degrees of Freedom (Df) 4.661531
+# Penalized Criterion (RSS) 52713.98
+# Generalized Cross-Validation (GCV) 412.3577 
+
+heg_WHOQOL1_splineplot<-plot(mod.ss, xlab="HEG", ylab = "WHOQOL-Physical") + rug(temp1$heg) 
+
+```
+
+
+```{r modeling WHOQOL-Physical, echo=FALSE, include=FALSE}
+library(gam)
+
+
+physical_1<-gam(whoqol_d1_100 ~ s(heg, spar = 0.4073565) + age +  sex + mspss_6mo_total + n_iadl_independent, family = gaussian, data=temp1)
+plot(physical_1, se=TRUE)
+```
+
