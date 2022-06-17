@@ -74,34 +74,159 @@ HEG_vs_QoL<-df_long %>%
                                     facet_wrap(~domain)
 ```
 
+```{r SCatterplot matrix, echo=FALSE, include=FALSE}
+library(GGally)
 
-```{r Fitting a spline for HEG, echo=FALSE, include=FALSE}
+# Remove missing data
+temp_1<-df %>%
+          drop_na(heg, whoqol_d1_100) %>%
+            select(whoqol_d1_100, heg, age, sex, n_iadl_independent, mspss_6mo_total, cd_score)
+
+temp_2<-df %>%
+          drop_na(heg, whoqol_d2_100) %>%
+            select(whoqol_d2_100, heg, age, sex, n_iadl_independent, mspss_6mo_total, cd_score)
+
+temp_3<-df %>%
+          drop_na(heg, whoqol_d3_100) %>%
+            select(whoqol_d3_100, heg, age, sex, n_iadl_independent, mspss_6mo_total, cd_score)
+
+temp_4<-df %>%
+          drop_na(heg, whoqol_d4_100) %>%
+            select(whoqol_d4_100, heg, age, sex, n_iadl_independent, mspss_6mo_total, cd_score)
+
+
+correlogram_physical<-ggpairs(temp_1, title="Correlogram with Physical Health")
+correlogram_psych<-ggpairs(temp_2, title="Correlogram with Physical Health")
+correlogram_social<-ggpairs(temp_3, title="Correlogram with Physical Health")
+correlogram_environmental<-ggpairs(temp_4, title="Correlogram with Physical Health")
+
+```
+
+
+
+
+```{r Fitting splines for the HEG, echo=FALSE, include=FALSE}
 library(splines)
 library(npreg)
 
-# Remove missing data
-temp1<-df %>%
-          drop_na(heg, whoqol_d1_100)
-
-# Fit a smoothing spline for the relationship between HEG and WHOQOL_d1
-mod.ss<-with(temp1, ss(heg, whoqol_d1_100))
-mod.ss
+# Fit a smoothing spline for the relationship between HEG and WHOQOL domains
+mod.ss_1<-with(temp_1, ss(heg, whoqol_d1_100))
 
 # Smoothing Parameter  spar = 0.4073565   lambda = 5.227771e-05
 # Equivalent Degrees of Freedom (Df) 4.661531
 # Penalized Criterion (RSS) 52713.98
 # Generalized Cross-Validation (GCV) 412.3577 
 
-heg_WHOQOL1_splineplot<-plot(mod.ss, xlab="HEG", ylab = "WHOQOL-Physical") + rug(temp1$heg) 
+mod.ss_2<-with(temp_2, ss(heg, whoqol_d2_100))
+
+# Smoothing Parameter  spar = 0.4185096   lambda = 6.293541e-05
+# Equivalent Degrees of Freedom (Df) 4.486647
+# Penalized Criterion (RSS) 37251.97
+# Generalized Cross-Validation (GCV) 290.6367
+
+mod.ss_3<-with(temp_3, ss(heg, whoqol_d3_100))
+# Smoothing Parameter  spar = 1.5   lambda = 4095.997
+# Equivalent Degrees of Freedom (Df) 2                      <- Note - Df = 2, hence, spline is not improving fit
+# Penalized Criterion (RSS) 43247.52
+# Generalized Cross-Validation (GCV) 327.5597 
+
+mod.ss_4<-with(temp_4, ss(heg, whoqol_d4_100))
+# Smoothing Parameter  spar = 1.5   lambda = 4095.997
+# Equivalent Degrees of Freedom (Df) 2                      <- Note - Df = 2, hence, spline is not improving fit
+# Penalized Criterion (RSS) 34752.85
+# Generalized Cross-Validation (GCV) 261.2423 
+
+
+heg_WHOQOL1_splineplot<-plot(mod.ss_1, xlab="HEG", ylab = "WHOQOL-Physical") + rug(temp_1$heg) 
+heg_WHOQOL2_splineplot<-plot(mod.ss_2, xlab="HEG", ylab = "WHOQOL-Psychological") + rug(temp_2$heg) 
+heg_WHOQOL3_splineplot<-plot(mod.ss_3, xlab="HEG", ylab = "WHOQOL-Social") + rug(temp_3$heg) 
+heg_WHOQOL4_splineplot<-plot(mod.ss_4, xlab="HEG", ylab = "WHOQOL-Environmental") + rug(temp_4$heg) 
 
 ```
-
 
 ```{r modeling WHOQOL-Physical, echo=FALSE, include=FALSE}
 library(gam)
 
-
-physical_1<-gam(whoqol_d1_100 ~ s(heg, spar = 0.4073565) + age +  sex + mspss_6mo_total + n_iadl_independent, family = gaussian, data=temp1)
+physical_1<-gam(whoqol_d1_100 ~ s(heg, spar = 0.4073565) + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_1)
 plot(physical_1, se=TRUE)
+
+psych_1<-gam(whoqol_d2_100 ~ s(heg, spar = 0.4185096) + age + sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_2)
+plot(psych_1, se=TRUE)
+
+social_1<-gam(whoqol_d3_100 ~ heg + age + sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_3)
+plot(social_1, se=TRUE)
+
+envir_1<-gam(whoqol_d4_100 ~ heg + age + sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_4)
+plot(envir_1, se=TRUE)
+
+```
+
+
+```{r modeling using mcgv package, echo=FALSE, include=FALSE}
+
+detach("package:gam", unload = TRUE) # Note that the gam and mgcv packages don't play well together so need to detach first.
+library(mgcv)
+# Guidance : https://m-clark.github.io/generalized-additive-models/application.html#single-predictor
+
+#First just a linear model
+physical_lm<-gam(whoqol_d1_100 ~ heg + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_1)
+summary(physical_lm)
+
+#Now looking for non-linear effects of each predictor
+physical_nl<-gam(whoqol_d1_100 ~ s(heg) + s(age) +sex + s(mspss_6mo_total) + n_iadl_independent + s(cd_score), family = gaussian, data=temp_1)
+summary(physical_nl)
+
+physical_nl_2<-gam(whoqol_d1_100 ~ s(heg) + s(age) +sex + s(mspss_6mo_total) + n_iadl_independent + cd_score, family = gaussian, data=temp_1)
+summary(physical_nl_2)
+
+physical_nl_cr<-gam(whoqol_d1_100 ~ s(heg, bs="cr") + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_1)
+summary(physical_nl_cr)
+
+physical_nl_justheg<-gam(whoqol_d1_100 ~ s(heg) + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_1)
+summary(physical_nl_justheg)
+
+AIC(physical_nl)         #1094.69
+AIC(physical_nl_2)       #1096.23
+AIC(physical_nl_cr)      #1104.44
+AIC(physical_nl_justheg) #1103.61
+
+summary(physical_nl)$r.sq          #0.60
+summary(physical_nl_2)$r.sq        #0.58
+summary(physical_nl_cr)$r.sq       #0.55
+summary(physical_nl_justheg)$r.sq  #0.55
+
+
+## Pick up here tomorrow with the graphical display
+
+```
+
+
+```{r examining residual plots, echo=FALSE, include=FALSE}
+plot.Gam(physical_1, residuals=TRUE, se=TRUE)
+plot.Gam(psych_1, residuals=TRUE, se=TRUE)
+plot.Gam(social_1, residuals=TRUE, se=TRUE)
+plot.Gam(envir_1, residuals=TRUE, se=TRUE)
+```
+
+```{r Predicting WHOQOL-BREF scores for a "standard" patient, echo=FALSE, include=FALSE}
+
+testdata = data.frame(heg = seq(-60, 20, length= 100), 
+                      age =  median(physical_1$model$age), #53
+                      sex = "male", 
+                      mspss_6mo_total = median(physical_1$model$mspss_6mo_total),   #71
+                      n_iadl_independent = median(physical_1$model$n_iadl_independent),   #12 - in other words, all of them
+                      cd_score = median(physical_1$model$n_iadl_independent))   #35
+
+physical_1_fits = predict.Gam(physical_1, newdata=testdata, se.fit=TRUE)
+physical_1_predicts = data.frame(testdata, fits) %>% 
+  mutate(lower = fit - 1.96*se.fit,
+         upper = fit + 1.96*se.fit)
+
+plot_physical_1_std_patient = ggplot(aes(x=Income,y=fit), data=predicts) +
+  geom_ribbon(aes(ymin = lower, ymax=upper), fill='gray90') +
+  geom_line(color='#00aaff') +
+  theme_trueMinimal()
+
+
 ```
 
