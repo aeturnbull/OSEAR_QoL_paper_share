@@ -1,0 +1,146 @@
+---
+title: "2_Primary_analysis"
+author: "Alison E. Turnbull"
+date: '2022-07-20'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loading df tab1 and tab2 from March 28, echo=FALSE}
+load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
+```
+
+```{r packages, include=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(plyr)
+library(dplyr)
+library(janitor)
+library(table1)
+library(finalfit)
+install.packages("qqplotr", dependencies = TRUE)
+library(DescTools)
+```
+
+```{r Health expectations met, include=FALSE}
+
+# Creating variables for 1)the difference between perceived and expected and 2)whether health expectations were met
+
+df<-df %>%
+        mutate(health_diff=eqol_vas - exp_vas) %>%
+            mutate(health_met=ifelse(health_diff>-9, "Met", "Unmet")) 
+
+# table(df$health_met, useNA="ifany")  #70 Met, 69 Unmet, 41 missing
+
+## Look at the distribution of whoqol-bref total scores for people with vs without met health expectations
+hist(df$whoqol_d1_100)
+hist(df$whoqol_d2_100)
+hist(df$whoqol_d3_100)
+hist(df$whoqol_d4_100)
+hist(df$eq_index)  
+
+#Test each group for normality
+# https://stat-methods.com/home/mann-whitney-u-r/
+
+df %>%
+  group_by(health_met) %>%
+  summarise(`W Stat` = shapiro.test(whoqol_d1_100)$statistic,
+            p.value = shapiro.test(whoqol_d1_100)$p.value)       #W - Stat = 0.95, P<0.00001 - reject normality assumption
+
+df %>%
+  group_by(health_met) %>%
+  summarise(`W Stat` = shapiro.test(eq_index)$statistic,
+            p.value = shapiro.test(eq_index)$p.value)           #W - Stat = 0.82, P<0.00001 - reject normality assumption
+
+df %>%
+  filter(-is.na(health_met)) %>%
+  ggplot(data = df, mapping = aes(sample = whoqol_d1_100, color = health_met, fill = health_met)) +
+  stat_qq_band(alpha=0.5, conf=0.95, qtype=1, bandType = "boot") +
+  stat_qq_line(identity=TRUE) +
+  stat_qq_point(col="black") +
+  facet_wrap(~ health_met, scales = "free") +
+  labs(x = "Theoretical Quantiles", y = "Sample Quantiles") + theme_bw()
+```
+
+```{r Unadjusted comparison of QoL in people with met vs unmet health expectations}
+## Using a Mann-Whitney U test
+# Ho: distribution 1 = distribution 2
+# Ha: distribution 1 != distribution 2
+# Assumptions: 1) Tx groups are independent, 2) response variable is ordinal or continuous, 3) Bath samples are random 
+
+#Perform the Mann-Whitney U test
+# Physical health
+q1<-wilcox.test(whoqol_d1_100 ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(q1)
+
+
+# data:  whoqol_d1_100 by health_met
+# W = 3473, p-value = 1.117e-06
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#  12.00003 25.00002
+# sample estimates:
+# difference in location - Hodges Lehmann Estimator
+#               19.00005 
+
+
+# Psychological health
+q2<-wilcox.test(whoqol_d2_100 ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(q2)
+
+# data:  whoqol_d2_100 by health_met
+# W = 3221, p-value = 0.0001421
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#   5.999947 17.999920
+# sample estimates:
+# difference in location 
+#               12.00004
+
+# Social relationships
+q3<-wilcox.test(whoqol_d3_100 ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(q3)
+ 
+# data:  whoqol_d3_100 by health_met
+# W = 2843.5, p-value = 0.01921
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#  2.632120e-06 1.299995e+01
+# sample estimates:
+# difference in location 
+#               6.000021 
+
+# Environmental health
+q4<-wilcox.test(whoqol_d4_100 ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(q4)
+ 
+# data:  whoqol_d4_100 by health_met
+# W = 3158.5, p-value = 0.000427
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#   5.999978 13.000004
+# sample estimates:
+# difference in location 
+#               11.99994 
+
+
+# EQ-5D Index values
+eq_index_Utest<-wilcox.test(eq_index ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(eq_index_Utest)
+ 
+# data:  eq_index by health_met
+# W = 3626, p-value = 1.851e-09
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#  0.1350118 0.2070247
+# sample estimates:
+# difference in location 
+#              0.1729651 
+
+```
+
+
+

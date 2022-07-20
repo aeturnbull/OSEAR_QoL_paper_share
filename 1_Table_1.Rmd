@@ -1,0 +1,72 @@
+---
+title: "1_Table_1"
+author: "Alison E. Turnbull"
+date: '2022-06-29'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r loading df tab1 and tab2 from March 28, echo=FALSE}
+load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
+```
+
+```{r packages, include=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(plyr)
+library(dplyr)
+library(janitor)
+library(table1)
+library(finalfit)
+```
+
+
+```{r Table 1, echo=FALSE}
+tab1<- df %>%
+             mutate(age=ff_label(age, "Age")) %>%
+             mutate(sex=ff_label(sex, "Sex")) %>%
+             mutate(race=ff_label(race, "Race")) %>%
+             mutate(edu=ff_label(edu, "Highest Level of Education")) %>%
+             mutate(income=ff_label(income, "Median income of home zipcode")) %>%
+             mutate(adi_perc=ff_label(adi_perc, "Area Deprivation Index (ADI) national percentile ranking")) %>%
+              mutate(insur_private=ff_label(insur_private, "Private Insurance")) %>%
+              mutate(insur_mcaid=ff_label(insur_mcaid, "Medicaid")) %>%
+              mutate(insur_mcare=ff_label(insur_mcare, "Medicare")) %>%
+              mutate(insur_none=ff_label(insur_none, "Uninsured")) %>%
+                mutate(adm_dx=ff_label(adm_dx, "Admission diagnosis")) %>%
+                mutate(sx=ff_label(sx, "Surgical status")) %>%
+                mutate(covid=ff_label(covid, "Tested positive for COVID-19 during admission")) %>%
+                mutate(ards=ff_label(ards, "Met criteria for ARDS")) %>%
+                mutate(apache=ff_label(apache, "APACHE II score")) %>%
+                mutate(los=ff_label(los, "Length of hospital stay in days")) %>%
+                mutate(depress=ff_label(depress, "Baseline history of depression")) %>%
+                mutate(anxiety=ff_label(anxiety, "Baseline anxiety disorder")) %>%
+                    mutate(cfs=ff_label(cfs, "Clinical Frailty Scale range 1-8")) %>%
+                    mutate(cd_score=ff_label(cd_score, "Connor-Davidson Resilience Scale score")) %>%
+                    mutate(mspss_total=ff_label(mspss_total, "MSPSS total score")) %>%
+                    mutate(mspss_so=ff_label(mspss_so, "MSPSS Significant Other sub-scale")) %>%
+                    mutate(mspss_fam=ff_label(mspss_fam, "MSPSS Family sub-scale")) %>%
+                    mutate(mspss_fr=ff_label(mspss_fr, "MSPSS Friends sub-scale")) %>%
+        summary_factorlist(explanatory=c("age", "sex", "race", "edu", "income", "adi_perc", 
+                                         "insur_private", "insur_mcare", "insur_mcaid", "insur_none", 
+                                            "adm_dx", "sx", "covid", "ards", "apache", "los", "depress", "anxiety", 
+                                                    "cfs", "cd_score", "mspss_total", "mspss_so", "mspss_fam", "mspss_fr"), 
+                           cont = "median", 
+                           na_include=TRUE,
+                           total_col=TRUE, 
+                           add_col_totals = TRUE,
+                           include_col_totals_percent = FALSE, 
+                           col_totals_prefix = "N=", 
+                           digits=c(0, 0, 0, 0, 0, 
+                                    0, 0, 0, 0, 0, 
+                                    0, 0, 0, 0, 0, 
+                                    0, 0, 0, 0, 0, 
+                                    0, 0, 0, 0))
+
+
+write_csv(tab1, here::here("tables", "20220629_OSEAR_Table1.csv"))
+```

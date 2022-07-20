@@ -202,10 +202,10 @@ summary(physical_nl_cr)$r.sq       #0.55
 summary(physical_nl_justheg)$r.sq  #0.55
 
 ## Ok, I think the simplest model is best and doesn't lose much in terms of fit.  
-physical_gam<-gam(whoqol_d1_100 ~ s(heg) + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_1)
-psych_gam<-gam(whoqol_d2_100 ~ s(heg) + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_2)
-social_gam<-gam(whoqol_d3_100 ~ s(heg) + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_3)
-envir_gam<-gam(whoqol_d4_100 ~ s(heg) + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_4)
+physical_gam<-gam(whoqol_d1_100 ~ s(heg, bs="cr") + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_1)
+psych_gam<-gam(whoqol_d2_100 ~ s(heg, bs="cr") + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_2)
+social_gam<-gam(whoqol_d3_100 ~ s(heg, bs="cr") + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_3)
+envir_gam<-gam(whoqol_d4_100 ~ s(heg, bs="cr") + age +sex + mspss_6mo_total + n_iadl_independent + cd_score, family = gaussian, data=temp_4)
 
 
 ## Run anovas for models with and without splines of heg to test if this is improving fit significantly
@@ -241,19 +241,24 @@ visreg(physical_gam, "heg",  jitter = TRUE,
        ylim(0, 80)) +
           theme_bw()
 
-plot1_ph<-visreg(physical_gam, "heg", ylab="Physical Health", ylim=c(0, 100), xlim=c(-50, 30), 
+plot1_ph<-visreg(physical_gam, "heg", ylab="Physical Health", ylim=c(0, 100), xlim=c(-45, 30), 
        jitter = TRUE, xlab = "Health Expectation Gap", 
-       ylab = "Predicted WHOQOL-BREF Physical Health Domain Score", 
-       main = "Predicted QoL for a 53 yo male with all I/ADLs and median values") +
+       ylab = "Physical Health Domain Score", 
+       main = "Predicted WHOQOL-BREF Physical Health - multivariable model") +
           theme_bw()
 
 
-plot2_ph<-visreg(physical_gam, "heg", type="contrast", xlim=c(-50, 30), 
+plot2_ph<-visreg(physical_gam, "heg", type="contrast", xlim=c(-45, 30), 
        jitter = TRUE, xlab = "Health Expectation Gap", gg=TRUE,
-       ylab = "Change in WHOQOL-BREF Physical Health Domain Score") + 
-          theme_bw() + 
-          geom_hline(yintercept=0, color="red", linetype="dashed") + 
-          geom_vline(xintercept=-12, color="red") 
+       ylab = "Physical Health Score Change", 
+       main = "Estimated Impact of HEG on Physical Health Domain Score- multivariable model") 
+
+
+
+visreg(physical_gam, "heg", type="contrast", xlim=c(-45, 30), 
+        jitter = TRUE, xlab = "Health Expectation Gap", 
+        ylab = "Change in Physical Health Domain Score", main = "Contrast Plot: HEG vs Physical Health Domain - multivariable model")
+
 
 visreg2d(physical_gam, "heg", "n_iadl_independent", xlim=c(-40, 20), ylim=c(6, 12), plot.type="image", 
          xlab = "Health Expectation Gap", 
@@ -266,8 +271,8 @@ visreg2d(physical_gam, "heg", "n_iadl_independent", xlim=c(-40, 20), ylim=c(6, 1
 
 plot1_psych<-visreg(psych_gam, "heg",  jitter = TRUE, ylim=c(0, 100), xlim=c(-50, 30), 
        xlab = "Health Expectation Gap", 
-       ylab = "Predicted WHOQOL-BREF Psychological Health Domain Score", 
-       main = "Psychological Health Domain score for a standardized patient") +
+       ylab = "Psychological Health Domain Score", 
+       main = "Predicted WHOQOL-BREF Psychological Health - multivariable model") +
           theme_bw()
 
 plot2_psych<-visreg(psych_gam, "heg", type="contrast", xlim=c(-50, 30), 
@@ -287,8 +292,8 @@ visreg2d(psych_gam, "heg", "cd_score", xlim=c(-40, 20), plot.type="image",
 ```{r visualizing social health model results, echo=FALSE, include=FALSE}
 plot1_social<-visreg(social_gam, "heg",  jitter = TRUE, ylim=c(0, 100), xlim=c(-50, 30), 
        xlab = "Health Expectation Gap", 
-       ylab = "Predicted WHOQOL-BREF Social Relationships Score", 
-       main = "Social Relationships score for a standardized patient") +
+       ylab = "Social Relationships Score", 
+       main = "Predicted WHOQOL-BREF Social Relationships - multivariable model") +
           theme_bw()
 
 plot2_social<-visreg(social_gam, "heg", type="contrast", xlim=c(-50, 30), 
@@ -308,8 +313,8 @@ visreg2d(social_gam, "heg", "mspss_6mo_total", xlim=c(-40, 20), plot.type="image
 ```{r visualizing Environment health model results, echo=FALSE, include=FALSE}
 plot1_envir<-visreg(envir_gam, "heg",  jitter = TRUE, ylim=c(0, 100), xlim=c(-50, 30), 
        xlab = "Health Expectation Gap", 
-       ylab = "Predicted WHOQOL-BREF Environment Score", 
-       main = "Social Relationships score for a standardized patient") +
+       ylab = "Environmental Score", 
+       main = "Predicted WHOQOL-BREF Environmental Health - multivariable model") +
           theme_bw()
 
 plot2_envir<-visreg(envir_gam, "heg", type="contrast", xlim=c(-50, 30), 
