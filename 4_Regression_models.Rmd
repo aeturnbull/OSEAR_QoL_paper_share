@@ -1,0 +1,205 @@
+---
+title: "HEG vs QoL models"
+author: "Alison E. Turnbull"
+date: '2022-07-21'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r loading df tab1 and tab2 from March 28, echo=FALSE}
+load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
+```
+
+```{r packages, include=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(plyr)
+library(dplyr)
+library(janitor)
+library(table1)
+library(finalfit)
+```
+
+<!-- QoL in patents with vs without fully achieved -->
+<!-- expectations will also be compared using multivariable linear regression. To avoid over‐fitting, the regression analysis -->
+<!-- will be adjusted for age, change in social support, resilience, employment status, and ADLs/IADLs performance at 6 -->
+<!-- months. -->
+
+
+```{r, number of independent i/adls, echo=FALSE, include=FALSE}
+ind_ADL<- df %>%
+        select(starts_with("mo6_")) %>%
+          #filter(!is.na(mo6_bathing)) %>%      # There are 26 people missing data on ADL independence at 6 months
+          select(-c(mo6_continence, mo6_laundry_fct)) %>%
+            dplyr::mutate(across(everything(), ~ifelse(.x =="Independent", 1, 0))) %>%
+                rowwise() %>%
+                    dplyr::mutate(n_ind=sum(c_across(cols=everything())))
+
+df<-cbind(df, ind_ADL$n_ind)
+names(df)[154]<-"n_ind"
+```
+
+
+```{r Create HEG, echo=FALSE, include=FALSE}
+
+#Calculating the health expectation gap (HEG)
+df <- df %>%
+        mutate(heg=eqol_vas - exp_vas)
+```
+
+<!-- Guidance : https://m-clark.github.io/generalized-additive-models/application.html#single-predictor -->
+
+```{r modeling WHOQOL-Physical, echo=FALSE, include=FALSE}
+library(gam)
+library(mgcv)
+
+# Remove missing data
+temp_1<-df %>%
+          drop_na(heg, whoqol_d1_100) %>%
+            select(whoqol_d1_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+
+temp_2<-df %>%
+          drop_na(heg, whoqol_d2_100) %>%
+            select(whoqol_d2_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+
+temp_3<-df %>%
+          drop_na(heg, whoqol_d3_100) %>%
+            select(whoqol_d3_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+
+temp_4<-df %>%
+          drop_na(heg, whoqol_d4_100) %>%
+            select(whoqol_d4_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+
+# Fitting models for each domain score with cubic regression splines for the HEG variable in each. 
+# Will compare to models without the spline for each and then decide whether they improve fit. 
+physical_model_s<-gam(whoqol_d1_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_1)
+
+psych_model_s<-gam(whoqol_d2_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_2)
+
+social_model_s<-gam(whoqol_d3_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_3)
+
+envir_model_s<-gam(whoqol_d4_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_4)
+
+## Looking at summaries of these models, the Effective degrees of freedom (edf) for HEG is 1 in th model of social health.  
+## So, allowing splines does not improve the fit of that model.  We can remove that. 
+social_model<-gam(whoqol_d3_100 ~ heg + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_3)
+
+```
+
+```{r Visualizing effects for Physical Health domain, echo=FALSE, include=FALSE}
+
+# Creating a new dataset with mean/mode values for covariates
+
+testdata = data.frame(
+                heg = seq(-60, 25, length=66), 
+                age = mean(physical_model_s$model$age),  #53
+                sex = "male",   
+                n_ind = 12,
+                mspss_6mo_total = mean(physical_model_s$model$mspss_6mo_total), #68 
+                cd_score = mean(physical_model_s$model$cd_score))               #33               
+                  
+
+physical_predictions = predict(
+                          physical_model_s,
+                          newdata = testdata,
+                          type = 'response',
+                          se = TRUE)
+
+physical_preds = data.frame(testdata, physical_predictions) %>%
+  mutate(lower = fit - 1.96 * se.fit,
+         upper = fit + 1.96 * se.fit, 
+         domain = "Physical health")
+```
+
+```{r Visualizing effects for Psychological Health domain, echo=FALSE, include=FALSE}
+
+psych_predictions = predict(
+                          psych_model_s,
+                          newdata = testdata,
+                          type = 'response',
+                          se = TRUE)
+
+psych_preds = data.frame(testdata, psych_predictions) %>%
+  mutate(lower = fit - 1.96 * se.fit,
+         upper = fit + 1.96 * se.fit, 
+         domain = "Psychological health")
+
+```
+
+```{r Visualizing effects for Social Health domain, echo=FALSE, include=FALSE}
+
+social_predictions = predict(
+                          social_model,
+                          newdata = testdata,
+                          type = 'response',
+                          se = TRUE)
+
+social_preds = data.frame(testdata, social_predictions) %>%
+  mutate(lower = fit - 1.96 * se.fit,
+         upper = fit + 1.96 * se.fit, 
+         domain = "Social relationships")
+
+```
+
+```{r Visualizing effects for Environmental Health domain, echo=FALSE, include=FALSE}
+
+envir_predictions = predict(
+                          envir_model_s,
+                          newdata = testdata,
+                          type = 'response',
+                          se = TRUE)
+
+envir_preds = data.frame(testdata, envir_predictions) %>%
+  mutate(lower = fit - 1.96 * se.fit,
+         upper = fit + 1.96 * se.fit, 
+         domain = "Environmental health")
+```
+
+```{r Visualizing the impact of heg, echo=FALSE, include=FALSE}
+all_preds<-rbind(physical_preds, psych_preds, social_preds, envir_preds)
+
+all_preds$domain<-factor(all_preds$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environmental health"))
+
+#Guidance on how to create the text for the figure
+# lm_eqn <- function(df){
+#     m <- lm(y ~ x, df);
+#     eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+#          list(a = format(unname(coef(m)[1]), digits = 2),
+#               b = format(unname(coef(m)[2]), digits = 2),
+#              r2 = format(summary(m)$r.squared, digits = 3)))
+#     as.character(as.expression(eq));
+# }
+# 
+# p1 <- p + geom_text(x = 25, y = 300, label = lm_eqn(df), parse = TRUE)
+
+
+
+# Adjusted R-squared values for each model
+#Rs<-c("~~italic(R)^2~0.55", "~~italic(R)^2~0.43", "~~italic(R)^2~0.38", "~~italic(R)^2~0.45")
+
+#pred_text<-data.frame(label= as.character(as.expression(Rs)), 
+                       domain=c("Physical health", "Psychological health",  "Social relationships",  "Environmental health"), 
+                       x = c(-40, -40, -40, -40), 
+                       y = c(20, 20, 20, 20))
+
+
+preds_plot<-ggplot(aes(x = heg, y = fit), data = all_preds) +
+                        geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'gray92') +
+                        geom_line(color = 'blue') + 
+                          labs(title="Predicted quality of life for a standardized patient" , 
+                                  x="Health Expectation Gap at 6 months", 
+                                  y="Predicted WHOQoL-BREF domain score at 6 months") + 
+                              scale_x_continuous(limits=c(-60, 25), breaks=c(-50, -25, 0, 25)) +
+                              scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
+                              geom_vline(xintercept = 0, linetype="dashed") + 
+                              #geom_text(data = pred_text, mapping=aes(x=x, y=y, label=label)) +
+                                theme_bw() + 
+                                  facet_wrap(~domain)
+
+
+```
+

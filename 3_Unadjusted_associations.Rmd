@@ -21,7 +21,7 @@ library(dplyr)
 library(janitor)
 library(table1)
 library(finalfit)
-install.packages("qqplotr", dependencies = TRUE)
+library(qqplotr)
 library(DescTools)
 ```
 
@@ -322,6 +322,13 @@ df <- df %>%
         mutate(heg=eqol_vas - exp_vas)
 
 ## Create a histogram of the heg here.
+heg_hist<-df %>%
+              ggplot(aes(x=heg)) + 
+                  geom_histogram(color="black", fill="white") + 
+                    labs(title="Histogram of Health Expectation Gap (N = 139)", 
+                            x="Health expectation gap (HEG) at 6 months") +
+                     theme_bw()
+
 
 ## Summary heg statistics: 
 quantile(df$heg, na.rm = TRUE)

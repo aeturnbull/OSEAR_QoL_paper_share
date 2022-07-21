@@ -32,7 +32,6 @@ ind_ADL<- df %>%
             dplyr::mutate(across(everything(), ~ifelse(.x =="Independent", 1, 0))) %>%
                 rowwise() %>%
                     dplyr::mutate(n_ind=sum(c_across(cols=everything())))
-
 ```
 
 
