@@ -1,0 +1,376 @@
+---
+title: "3_Unadjusted_unadjusted associations"
+author: "Alison E. Turnbull"
+date: '2022-07-20'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loading df tab1 and tab2 from March 28, echo=FALSE}
+load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
+```
+
+```{r packages, include=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(plyr)
+library(dplyr)
+library(janitor)
+library(table1)
+library(finalfit)
+install.packages("qqplotr", dependencies = TRUE)
+library(DescTools)
+```
+
+<!-- From the OSEAR protocol statistical analysis plan
+<!-- Unadjusted associations between WHOQOL‐BREF score and 1) number of achieved ADL/IADL expectations (continuous -->
+<!-- outcome), 2) number of achieved expectations about ADLs/IADLs rated as “Important” or “Very Important” at hospital -->
+<!-- discharge, 3) social support score, and 4) resilience score will be visualized using scatterplots and quantified using -->
+<!-- Pearson’s and Spearman’s correlation coefficients as appropriate. -->
+
+```{r QOL vs number of ADL/IADLs acheived, include=FALSE, message=FALSE}
+
+# Calculating the number of independent I/ADLs at 6 months
+ind_ADL<- df %>%
+        select(starts_with("mo6_")) %>%
+          #filter(!is.na(mo6_bathing)) %>%      # There are 26 people missing data on ADL independence at 6 months
+          select(-c(mo6_continence, mo6_laundry_fct)) %>%
+            dplyr::mutate(across(everything(), ~ifelse(.x =="Independent", 1, 0))) %>%
+                rowwise() %>%
+                    dplyr::mutate(n_ind=sum(c_across(cols=everything())))
+
+df<-cbind(df, ind_ADL$n_ind)
+names(df)[153]<-"n_ind"
+
+
+# Creating a long version of dataframe
+long_iadls <- df %>%
+                select(id, n_ind, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                    pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+# Re-labeling domain names
+long_iadls$domain<-fct_recode(long_iadls$domain, 'Physical health' ="whoqol_d1_100", 'Psychological health' ="whoqol_d2_100", 'Social relationships' = "whoqol_d3_100", 'Environment health' ="whoqol_d4_100")
+  
+#Spearman's correlation coefficient
+IADLS_QoL1_rho<-cor.test(df$n_ind, df$whoqol_d1_100, method = "spearman")  #rho = 0.582, P=<0.001
+IADLS_QoL2_rho<-cor.test(df$n_ind, df$whoqol_d2_100, method = "spearman")  #rho = 0.363, P=<0.001
+IADLS_QoL3_rho<-cor.test(df$n_ind, df$whoqol_d3_100, method = "spearman")  #rho = 0.362, P=<0.001
+IADLS_QoL4_rho<-cor.test(df$n_ind, df$whoqol_d4_100, method = "spearman")  #rho = 0.322, P=<0.001
+
+
+IADLS_text<-data.frame(label= c("rho=0.58", "rho=0.36", "rho=0.36", "rho=0.32"), 
+                       domain=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"), 
+                       x = c(2, 2, 2, 2), 
+                       y = c(85, 85, 85, 85))
+
+IADLS_text$domain<-factor(IADLS_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"))
+
+
+# Faceted scatterplot
+IADLS_v_QoL<-long_iadls %>%
+                    ggplot(aes(x=n_ind, y=score)) + 
+                        geom_jitter(width = .2, height=.2, alpha=.5) +
+                            labs(title="I/ADLs performed independently vs WHOQOL-BREF", 
+                            x="Number of I/ADLS performed independently at 6 months", 
+                            y="WHOQoL-BREF domain score at 6 months") + 
+                              scale_x_continuous(limits=c(0, 13), breaks=c(0, 2, 4, 6, 8, 10, 12)) +
+                              scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
+                            geom_text(data = IADLS_text, mapping=aes(x=x, y=y, label=label)) +
+                                theme_bw() +
+                                  theme(aspect.ratio = 0.8) +
+                                    facet_wrap(~domain)
+IADLS_v_QoL
+
+```
+
+```{r QOL vs MSPSS score, include=FALSE, message=FALSE}
+
+# Creating a long version of dataframe
+long_mspss <- df %>%
+                select(id, mspss_6mo_total, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                    pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+# Re-labeling domain names
+long_mspss$domain<-fct_recode(long_mspss$domain, 'Physical health' ="whoqol_d1_100", 'Psychological health' ="whoqol_d2_100", 'Social relationships' = "whoqol_d3_100", 'Environment health' ="whoqol_d4_100")
+  
+#Spearman's correlation coefficient
+MSPSS_QoL1_rho<-cor.test(df$mspss_6mo_total, df$whoqol_d1_100, method = "spearman")  #rho = 0.305, P=<0.001
+MSPSS_QoL2_rho<-cor.test(df$mspss_6mo_total, df$whoqol_d2_100, method = "spearman")  #rho = 0.408, P=<0.001
+MSPSS_QoL3_rho<-cor.test(df$mspss_6mo_total, df$whoqol_d3_100, method = "spearman")  #rho = 0.494, P=<0.001
+MSPSS_QoL4_rho<-cor.test(df$mspss_6mo_total, df$whoqol_d4_100, method = "spearman")  #rho = 0.488, P=<0.001
+
+
+MSPSS_text<-data.frame(label= c("rho=0.31", "rho=0.41", "rho=0.49", "rho=0.49"), 
+                       domain=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"), 
+                       x = c(25, 25, 25, 25), 
+                       y = c(85, 80, 85, 90))
+
+MSPSS_text$domain<-factor(MSPSS_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"))
+
+
+# Faceted scatterplot
+MSPSS_v_QoL<-long_mspss %>%
+                    ggplot(aes(x=mspss_6mo_total, y=score)) + 
+                        geom_jitter(width = .2, height=.2, alpha=.5) +
+                            #geom_smooth(span=.8) +
+                            labs(title="Perceived Social Support vs WHOQOL-BREF", 
+                            x="MSPSS total score at 6 months", 
+                            y="WHOQoL-BREF domain score at 6 months") + 
+                              scale_x_continuous(limits=c(12, 84), breaks=c(12, 24, 36, 48, 60, 72, 84)) +
+                              scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
+                            geom_text(data = MSPSS_text, mapping=aes(x=x, y=y, label=label)) +
+                                theme_bw() +
+                                  theme(aspect.ratio = 0.8) +
+                                    facet_wrap(~domain)
+MSPSS_v_QoL
+
+```
+
+
+```{r QOL vs resilience score, include=FALSE, message=FALSE}
+# Creating a long version of dataframe
+long_cd <- df %>%
+                select(id, cd_score, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                    pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+# Re-labeling domain names
+long_cd$domain<-fct_recode(long_cd$domain, 'Physical health' ="whoqol_d1_100", 'Psychological health' ="whoqol_d2_100", 'Social relationships' = "whoqol_d3_100", 'Environment health' ="whoqol_d4_100")
+  
+#Spearman's correlation coefficient
+CD_QoL1_rho<-cor.test(df$cd_score, df$whoqol_d1_100, method = "spearman")  #rho = 0.233, P=0.0046
+CD_QoL2_rho<-cor.test(df$cd_score, df$whoqol_d2_100, method = "spearman")  #rho = 0.375, P=<0.001
+CD_QoL3_rho<-cor.test(df$cd_score, df$whoqol_d3_100, method = "spearman")  #rho = 0.248, P=0.002
+CD_QoL4_rho<-cor.test(df$cd_score, df$whoqol_d4_100, method = "spearman")  #rho = 0.314, P=0.0001
+
+
+cd_text<-data.frame(label= c("rho=0.23", "rho=0.37", "rho=0.25", "rho=0.31"), 
+                       domain=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"), 
+                       x = c(35, 35, 35, 35), 
+                       y = c(10, 10, 10, 10))
+
+cd_text$domain<-factor(cd_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"))
+
+
+# Faceted scatterplot
+CDRisc_v_QoL<-long_cd %>%
+                    ggplot(aes(x=cd_score, y=score)) + 
+                        geom_jitter(width = .5, height=.5, alpha=.5) +
+                            #geom_smooth(span=.6) +
+                            labs(title="Resilience vs WHOQOL-BREF", 
+                            x="CD-RISC 10 score at 6 months", 
+                            y="WHOQoL-BREF domain score at 6 months") + 
+                              scale_x_continuous(limits=c(14, 40), breaks=c(16, 20, 24, 28, 32, 36, 40)) +
+                              scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
+                            geom_text(data = cd_text, mapping=aes(x=x, y=y, label=label)) +
+                                theme_bw() +
+                                  theme(aspect.ratio = 0.8) +
+                                    facet_wrap(~domain)
+CDRisc_v_QoL
+```
+
+```{r QOL vs age, include=FALSE, message=FALSE}
+# Creating a long version of dataframe
+age_long <- df %>%
+            select(id, age, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+# Re-labeling domain names
+age_long$domain<-fct_recode(age_long$domain, 'Physical health' ="whoqol_d1_100", 'Psychological health' ="whoqol_d2_100", 'Social relationships' = "whoqol_d3_100", 'Environment health' ="whoqol_d4_100")
+  
+
+#Spearman's correlation coefficient
+age_QoL1_rho<-cor.test(df$age, df$whoqol_d1_100, method = "pearson")  #rho = 0.033
+age_QoL2_rho<-cor.test(df$age, df$whoqol_d2_100, method = "pearson")  #rho = 0.094
+age_QoL3_rho<-cor.test(df$age, df$whoqol_d3_100, method = "pearson")  #rho = 0.076
+age_QoL4_rho<-cor.test(df$age, df$whoqol_d4_100, method = "pearson")  #rho = 0.076
+
+
+age_text<-data.frame(label= c("rho=0.03", "rho=0.09", "rho=0.08", "rho=0.08"), 
+                       domain=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"), 
+                       x = c(70, 70, 70, 70), 
+                       y = c(10, 10, 10, 10))
+
+age_text$domain<-factor(cd_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"))
+
+
+
+
+# Faceted scatterplot
+AGE_vs_QoL<-age_long %>%
+                    ggplot(aes(x=age, y=score)) + 
+                        geom_jitter(width = 1, height=1, alpha=.5) +
+                          #geom_smooth(span=.8) +
+                            labs(title="Age vs Quality of Life", 
+                            x="Health expectation gap at 6 months", 
+                            y="WHOQoL-BREF domain score at 6 months") + 
+                              scale_x_continuous(limits=c(20, 90), breaks=c(20, 30, 40, 50, 60, 70, 80, 90)) +
+                              scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
+                            geom_text(data = age_text, mapping=aes(x=x, y=y, label=label)) +
+                                theme_bw() +
+                                  theme(aspect.ratio = .8) +
+                                    facet_wrap(~domain)
+```
+
+
+```{r gender vs QoL, include=FALSE, message=FALSE}
+
+# Creating a long version of dataframe
+sex_long <- df %>%
+            select(id, sex, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+
+# Re-labeling domain names
+sex_long$domain<-fct_recode(sex_long$domain, 'Physical health' ="whoqol_d1_100", 'Psychological health' ="whoqol_d2_100", 'Social relationships' = "whoqol_d3_100", 'Environment health' ="whoqol_d4_100")
+
+gender_plot<-ggplot(sex_long, aes(x = sex, y =score)) +
+  stat_boxplot(geom ="errorbar", width = 0.5) +
+  geom_boxplot() + 
+  labs(title="Gender vs Quality of Life", 
+                            x="", 
+                            y="WHOQoL-BREF domain score at 6 months") + 
+  theme_bw() + theme(legend.position="none") +  facet_wrap(~domain)
+```
+
+
+<!-- For our secondary analysis, we will calculate the difference between each patient’s expected health‐related quality of -->
+<!-- life score at hospital discharge and the actual health‐related quality of life score measured at 6 months using the EQ‐5D -->
+<!-- VAS. The distribution of this statistic will be displayed using a histogram and cumulative rank scatterplot (quantile plot) -->
+<!-- and summarized using descriptive statistics (quantiles, mean, range). -->
+
+
+
+```{r Scatterplot of expected vs perceived health, echo=FALSE}
+
+## Creating the polygons that will shade areas of plot outside the Minimal Clinical Important Difference 
+beat_exp<-tibble(exp_vas=c(0, 91, 0), eqol_vas=c(9, 101, 101))
+exp_unmet<-tibble(exp_vas=c(9, 101, 101), eqol_vas=c(0, 0, 91))  
+## Important to point out that I'm making these areas 1 point smaller than necessary to account for the 1-increment 
+## jitter in the scatter plot. The MCID is 8.
+
+scatter1<-df %>%
+    filter((!is.na(eqol_vas))) %>%               #This means that the sample size is only 139
+      ggplot(aes(x=exp_vas, y = eqol_vas)) +
+        geom_jitter(alpha=.5, shape=16, position = position_jitter(width = 1, height=1)) + 
+            geom_abline(slope=1) +          
+            geom_text(x= 20, y = 95, label="Expectations exceeded", size= 4) +
+            geom_text(x= 40, y = 10, label="Unmet expectations", size = 4) +          
+            geom_polygon(data = beat_exp, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "red", 
+                                alpha=1/5) + 
+            geom_polygon(data = exp_unmet, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "blue", 
+                                alpha=1/5) +       
+                  xlim(c(-1, 101))+
+                  ylim(c(-1, 101))+
+                    labs(title="Expected vs perceived health at 6 months (N = 139)", 
+                         x="Expected 6-month health at hospital discharge", 
+                         y="Perceived health at 6 months")+ 
+                              theme_bw() +
+                              theme(aspect.ratio = 1)
+
+## Note to self - read up on how the MCID for EQ-VAS was estimated.
+## Note to self - Figure caption should explain that points have been jittered +/- 1 unit in either horizontal and vertical directions and shaded areas have been adjusted by 1 unit to ensure no point extends into a shaded region due to jittering. 
+
+### Lets make a version that highlights the people I'm really worried about...
+worry<-tibble(exp_vas=c(55, 101, 101), eqol_vas=c(0, 0, 76))
+
+scatter2<-df %>%
+    filter((!is.na(eqol_vas))) %>%               #This means that the sample size is only 139
+      ggplot(aes(x=exp_vas, y = eqol_vas)) +
+        geom_jitter(alpha=.5, shape=16, position = position_jitter(width = 1, height=1)) + 
+            geom_abline(slope=1) +          
+            geom_text(x= 20, y = 95, label="Expectations exceeded", size= 4) +
+            geom_text(x= 40, y = 10, label="Unmet expectations", size = 4) +  
+            geom_polygon(data = beat_exp, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "red", 
+                                alpha=1/5) + 
+            geom_polygon(data = exp_unmet, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "blue", 
+                                alpha=1/5) +       
+            geom_polygon(data = worry, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "blue", 
+                                alpha=.4) +    
+                  xlim(c(-1, 101))+
+                  ylim(c(-1, 101))+
+                    labs(title="Expected vs perceived health at 6 months (N = 139)", 
+                         x="Expected 6-month health at hospital discharge", 
+                         y="Perceived health at 6 months")+ 
+                              theme_bw() +
+                              theme(aspect.ratio = 1)
+```
+
+
+
+
+```{r QoL vs HEG, include=FALSE, message=FALSE}
+
+df <- df %>%
+        mutate(heg=eqol_vas - exp_vas)
+
+## Create a histogram of the heg here.
+
+## Summary heg statistics: 
+quantile(df$heg, na.rm = TRUE)
+
+ #  0%  25%  50%  75% 100% 
+ # -94  -20   -8    0   40 
+
+mean(df$heg, na.rm=TRUE)
+# -11.61871
+
+# Creating a long version of dataframe
+heg_long <- df %>%
+            select(id, heg, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+# Re-labeling domain names
+heg_long$domain<-fct_recode(heg_long$domain, 'Physical health' ="whoqol_d1_100", 'Psychological health' ="whoqol_d2_100", 'Social relationships' = "whoqol_d3_100", 'Environment health' ="whoqol_d4_100")
+  
+
+#Spearman's correlation coefficient
+heg_QoL1_rho<-cor.test(df$heg, df$whoqol_d1_100, method = "spearman")  #rho = 0.487
+heg_QoL2_rho<-cor.test(df$heg, df$whoqol_d2_100, method = "spearman")  #rho = 0.400
+heg_QoL3_rho<-cor.test(df$heg, df$whoqol_d3_100, method = "spearman")  #rho = 0.294
+heg_QoL4_rho<-cor.test(df$heg, df$whoqol_d4_100, method = "spearman")  #rho = 0.373
+
+
+heg_text<-data.frame(label= c("rho=0.49", "rho=0.40", "rho=0.29", "rho=0.37"), 
+                       domain=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"), 
+                       x = c(30, 30, 30, 30), 
+                       y = c(10, 10, 10, 10))
+
+heg_text$domain<-factor(cd_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"))
+
+
+# Faceted scatterplot
+HEG_vs_QoL<-heg_long %>%
+                    ggplot(aes(x=heg, y=score)) + 
+                        geom_jitter(width = 1, height=1, alpha=.5) +
+                          geom_smooth(span=.8) +
+                           geom_vline(xintercept = 0, linetype="dashed") + 
+                            labs(title="Health Expectation Gap vs Quality of Life (N = 139)", 
+                            x="Health expectation gap at 6 months", 
+                            y="WHOQoL-BREF domain score at 6 months") + 
+                              scale_x_continuous(limits=c(-100, 50), breaks=c(-100, -75, -50, -25, 0, 25, 50)) +
+                              scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
+                              geom_text(data = heg_text, mapping=aes(x=x, y=y, label=label)) +
+                                theme_bw() +
+                                  theme(aspect.ratio = .8) +
+                                    facet_wrap(~domain)
+
+```

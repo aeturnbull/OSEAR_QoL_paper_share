@@ -25,7 +25,7 @@ install.packages("qqplotr", dependencies = TRUE)
 library(DescTools)
 ```
 
-```{r Health expectations met, include=FALSE}
+```{r Health expectations met, include=FALSE, message=FALSE}
 
 # Creating variables for 1)the difference between perceived and expected and 2)whether health expectations were met
 
