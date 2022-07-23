@@ -29,7 +29,6 @@ library(finalfit)
 <!-- will be adjusted for age, change in social support, resilience, employment status, and ADLs/IADLs performance at 6 -->
 <!-- months. -->
 
-
 ```{r, number of independent i/adls, echo=FALSE, include=FALSE}
 ind_ADL<- df %>%
         select(starts_with("mo6_")) %>%
@@ -40,7 +39,8 @@ ind_ADL<- df %>%
                     dplyr::mutate(n_ind=sum(c_across(cols=everything())))
 
 df<-cbind(df, ind_ADL$n_ind)
-names(df)[154]<-"n_ind"
+new_var<-length(df)
+names(df)[new_var]<-"n_ind"
 ```
 
 
@@ -88,6 +88,9 @@ envir_model_s<-gam(whoqol_d4_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total
 ## So, allowing splines does not improve the fit of that model.  We can remove that. 
 social_model<-gam(whoqol_d3_100 ~ heg + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_3)
 
+export_model<-rbind(summary.gam(physical_model_s)$p.table, summary.gam(psych_model_s)$p.table, summary.gam(social_model)$p.table, summary.gam(envir_model_s)$p.table)
+
+write.csv(export_model, here::here("tables","20220722_Model_summaries.csv"))
 ```
 
 ```{r Visualizing effects for Physical Health domain, echo=FALSE, include=FALSE}
@@ -164,27 +167,12 @@ all_preds<-rbind(physical_preds, psych_preds, social_preds, envir_preds)
 
 all_preds$domain<-factor(all_preds$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environmental health"))
 
-#Guidance on how to create the text for the figure
-# lm_eqn <- function(df){
-#     m <- lm(y ~ x, df);
-#     eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
-#          list(a = format(unname(coef(m)[1]), digits = 2),
-#               b = format(unname(coef(m)[2]), digits = 2),
-#              r2 = format(summary(m)$r.squared, digits = 3)))
-#     as.character(as.expression(eq));
-# }
-# 
-# p1 <- p + geom_text(x = 25, y = 300, label = lm_eqn(df), parse = TRUE)
-
-
-
-# Adjusted R-squared values for each model
-#Rs<-c("~~italic(R)^2~0.55", "~~italic(R)^2~0.43", "~~italic(R)^2~0.38", "~~italic(R)^2~0.45")
-
-#pred_text<-data.frame(label= as.character(as.expression(Rs)), 
+pred_text<-data.frame(label= c("Adj R2=0.55", "Adj R2=0.43", "Adj R2=0.38", "Adj R2=0.45"), 
                        domain=c("Physical health", "Psychological health",  "Social relationships",  "Environmental health"), 
                        x = c(-40, -40, -40, -40), 
                        y = c(20, 20, 20, 20))
+
+pred_text$domain<-factor(pred_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environmental health"))
 
 
 preds_plot<-ggplot(aes(x = heg, y = fit), data = all_preds) +
@@ -196,10 +184,8 @@ preds_plot<-ggplot(aes(x = heg, y = fit), data = all_preds) +
                               scale_x_continuous(limits=c(-60, 25), breaks=c(-50, -25, 0, 25)) +
                               scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
                               geom_vline(xintercept = 0, linetype="dashed") + 
-                              #geom_text(data = pred_text, mapping=aes(x=x, y=y, label=label)) +
+                              geom_text(data = pred_text, mapping=aes(x=x, y=y, label=label)) +
                                 theme_bw() + 
                                   facet_wrap(~domain)
-
-
 ```
 

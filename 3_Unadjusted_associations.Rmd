@@ -314,8 +314,6 @@ scatter2<-df %>%
 ```
 
 
-
-
 ```{r QoL vs HEG, include=FALSE, message=FALSE}
 
 df <- df %>%

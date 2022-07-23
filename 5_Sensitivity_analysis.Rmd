@@ -1,0 +1,162 @@
+---
+title: "5_Sensitivity_analysis"
+author: "Alison E. Turnbull"
+date: '2022-07-23'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loading df tab1 and tab2 from March 28, echo=FALSE}
+load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
+```
+
+```{r packages, include=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(plyr)
+library(dplyr)
+library(janitor)
+library(table1)
+library(finalfit)
+library(qqplotr)
+library(DescTools)
+```
+
+
+```{r Health expectations met, include=FALSE, message=FALSE}
+
+# Creating variables for 1)the difference between perceived and expected and 2)whether health expectations were met
+
+df<-df %>%
+        mutate(health_diff=eqol_vas - exp_vas) %>%
+            mutate(health_met=ifelse(health_diff>-9, "Met", "Unmet")) 
+
+df$health_met<-factor(df$health_met)
+
+# table(df$health_met, useNA="ifany")  #70 Met, 69 Unmet, 41 missing
+
+df %>%
+  group_by(health_met) %>%
+  summarise(`W Stat` = shapiro.test(eq_index)$statistic,
+            p.value = shapiro.test(eq_index)$p.value)           #W - Stat = 0.82, P<0.00001 - reject normality assumption
+
+df %>%
+  filter(-is.na(health_met)) %>%
+  ggplot(data = df, mapping = aes(sample = eq_index, color = health_met, fill = health_met)) +
+  stat_qq_band(alpha=0.5, conf=0.95, qtype=1, bandType = "boot") +
+  stat_qq_line(identity=TRUE) +
+  stat_qq_point(col="black") +
+  facet_wrap(~ health_met, scales = "free") +
+  labs(x = "Theoretical Quantiles", y = "Sample Quantiles") + theme_bw()
+```
+
+```{r Unadjusted comparison of QoL in people with met vs unmet health expectations, include=FALSE, message=FALSE}
+## Using a Mann-Whitney U test
+# Ho: distribution 1 = distribution 2
+# Ha: distribution 1 != distribution 2
+# Assumptions: 1) Tx groups are independent, 2) response variable is ordinal or continuous, 3) Bath samples are random 
+
+tab2_sensitivity<- df %>% 
+      filter(!is.na(health_met)) %>%
+      group_by(health_met) %>%    
+       dplyr::summarise(mean_physical = signif(mean(eq_index, na.rm=TRUE), 2), 
+                phys_IQR = paste0("(", quantile(eq_index, .25, na.rm=TRUE), " - ", quantile(eq_index, .75, na.rm=TRUE), ")"))
+
+
+# EQ-5D Index values
+eq_index_Utest<-wilcox.test(eq_index ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(eq_index_Utest)
+ 
+# data:  eq_index by health_met
+# W = 3626, p-value = 1.851e-09
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#  0.1350118 0.2070247
+# sample estimates:
+# difference in location 
+#              0.1729651 
+
+```
+
+```{r Visualizing Index values in met vs unmet expectations, include=FALSE, message=FALSE}
+
+# Creating a long version of dataframe
+inheg_long <- df %>%
+            select(id, heg, eq_index) %>%
+                pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+  
+
+#Spearman's correlation coefficient
+heg_eq_rho<-cor.test(df$heg, df$eq_index, method = "spearman")  #rho = 0.536
+
+
+heg_eq_text<-data.frame(label= "rho=0.54", 
+                       x = -50, 
+                       y = 0.10)
+
+
+# Unadjusted scatterplot with loess smoother
+HEG_vs_EQ_index<-df %>%
+                    ggplot(aes(x=heg, y=eq_index)) + 
+                        geom_jitter(width = .01, height=.01, alpha=.5) +
+                          geom_smooth(span=.8) +
+                           geom_vline(xintercept = 0, linetype="dashed") + 
+                            labs(title="Health Expectation Gap vs EQ-5D-5L Utility Index value at 6 months", 
+                            x="Health expectation gap at 6 months", 
+                            y="EQ-5D-5L utility index value at 6 months") + 
+                              scale_x_continuous(limits=c(-100, 50), breaks=c(-100, -75, -50, -25, 0, 25, 50)) +
+                              scale_y_continuous(limits=c(-.01, 1.02), breaks=c(0, .25, .50, .75, 1)) +
+                              geom_text(data = heg_eq_text, mapping=aes(x=x, y=y, label=label)) +
+                                theme_bw() +
+                                  theme(aspect.ratio = .8) 
+```
+
+```{r modeling EQ-5D-5L utility index values, echo=FALSE, include=FALSE}
+library(gam)
+library(mgcv)
+
+# Remove missing data
+eq_index_df<-df %>%
+          drop_na(heg, eq_index) %>%
+            select(eq_index, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+
+# Fitting model with cubic regression spline for the HEG variable. 
+eq_model_s<-gam(eq_index ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=eq_index_df)
+summary(eq_model_s)
+
+testdata = data.frame(
+                heg = seq(-60, 25, length=66), 
+                age = mean(physical_model_s$model$age),  #53
+                sex = "male",   
+                n_ind = 12,
+                mspss_6mo_total = mean(physical_model_s$model$mspss_6mo_total), #68 
+                cd_score = mean(physical_model_s$model$cd_score))               #33               
+                  
+
+EQ_predictions = predict(eq_model_s,
+                          newdata = testdata,
+                          type = 'response',
+                          se = TRUE)
+
+EQ_preds = data.frame(testdata, EQ_predictions) %>%
+  mutate(lower = fit - 1.96 * se.fit,
+         upper = fit + 1.96 * se.fit)
+
+EQ_plot<-ggplot(aes(x = heg, y = fit), data = EQ_preds) +
+                        geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'gray92') +
+                        geom_line(color = 'blue') + 
+                          labs(title="Predicted EQ-5D-5L utility index value for a standardized patient" , 
+                                  x="Health Expectation Gap at 6 months", 
+                                  y="Predicted EQ-5D-5L utility index value at 6 months") + 
+                              scale_x_continuous(limits=c(-60, 25), breaks=c(-50, -25, 0, 25)) +
+                              scale_y_continuous(limits=c(0, 1), breaks=c(0, .25, .50, .75, 1)) +
+                              geom_vline(xintercept = 0, linetype="dashed") + 
+                                theme_bw()
+
+```
+

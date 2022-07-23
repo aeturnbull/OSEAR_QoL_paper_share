@@ -33,6 +33,8 @@ df<-df %>%
         mutate(health_diff=eqol_vas - exp_vas) %>%
             mutate(health_met=ifelse(health_diff>-9, "Met", "Unmet")) 
 
+df$health_met<-factor(df$health_met)
+
 # table(df$health_met, useNA="ifany")  #70 Met, 69 Unmet, 41 missing
 
 ## Look at the distribution of whoqol-bref total scores for people with vs without met health expectations
@@ -51,11 +53,6 @@ df %>%
             p.value = shapiro.test(whoqol_d1_100)$p.value)       #W - Stat = 0.95, P<0.00001 - reject normality assumption
 
 df %>%
-  group_by(health_met) %>%
-  summarise(`W Stat` = shapiro.test(eq_index)$statistic,
-            p.value = shapiro.test(eq_index)$p.value)           #W - Stat = 0.82, P<0.00001 - reject normality assumption
-
-df %>%
   filter(-is.na(health_met)) %>%
   ggplot(data = df, mapping = aes(sample = whoqol_d1_100, color = health_met, fill = health_met)) +
   stat_qq_band(alpha=0.5, conf=0.95, qtype=1, bandType = "boot") +
@@ -70,6 +67,19 @@ df %>%
 # Ho: distribution 1 = distribution 2
 # Ha: distribution 1 != distribution 2
 # Assumptions: 1) Tx groups are independent, 2) response variable is ordinal or continuous, 3) Bath samples are random 
+
+tab2<- df %>% 
+      filter(!is.na(health_met)) %>%
+      group_by(health_met) %>%    
+       dplyr::summarise(mean_physical = signif(mean(whoqol_d1_100, na.rm=TRUE), 2), 
+                phys_IQR = paste0("(", quantile(whoqol_d1_100, .25, na.rm=TRUE), " - ", quantile(whoqol_d1_100, .75, na.rm=TRUE), ")"), 
+                mean_psych    = signif(mean(whoqol_d2_100, na.rm=TRUE), 2), 
+                psych_IQR = paste0("(", quantile(whoqol_d2_100, .25, na.rm=TRUE), " - ", quantile(whoqol_d1_100, .75, na.rm=TRUE), ")"), 
+                mean_social    = signif(mean(whoqol_d3_100, na.rm=TRUE), 2), 
+                social_IQR = paste0("(", quantile(whoqol_d3_100, .25, na.rm=TRUE), " - ", quantile(whoqol_d1_100, .75, na.rm=TRUE), ")"), 
+                mean_environment    = signif(mean(whoqol_d4_100, na.rm=TRUE), 2), 
+                envir_IQR = paste0("(", quantile(whoqol_d4_100, .25, na.rm=TRUE), " - ", quantile(whoqol_d1_100, .75, na.rm=TRUE), ")"))
+
 
 #Perform the Mann-Whitney U test
 # Physical health
@@ -125,20 +135,6 @@ print(q4)
 # sample estimates:
 # difference in location 
 #               11.99994 
-
-
-# EQ-5D Index values
-eq_index_Utest<-wilcox.test(eq_index ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
-print(eq_index_Utest)
- 
-# data:  eq_index by health_met
-# W = 3626, p-value = 1.851e-09
-# alternative hypothesis: true location shift is not equal to 0
-# 95 percent confidence interval:
-#  0.1350118 0.2070247
-# sample estimates:
-# difference in location 
-#              0.1729651 
 
 ```
 
