@@ -123,11 +123,19 @@ library(mgcv)
 # Remove missing data
 eq_index_df<-df %>%
           drop_na(heg, eq_index) %>%
-            select(eq_index, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+            select(eq_index, heg, age, sex, n_ind, mspss_6mo_total, cd_score, eqol_vas)
 
 # Fitting model with cubic regression spline for the HEG variable. 
-eq_model_s<-gam(eq_index ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=eq_index_df)
-summary(eq_model_s)
+eq_model_s<-gam(eq_index ~ s(heg, bs="cr") + age + sex + n_ind + mspss_6mo_total  + cd_score + eqol_vas, family = gaussian, data=eq_index_df)
+eq_model_l<-gam(eq_index ~ heg + age + sex + n_ind + mspss_6mo_total  + cd_score + eqol_vas, family = gaussian, data=eq_index_df)
+
+anova(eq_model_s, eq_model_l, test="Chisq") ##P=0.15
+
+summary(eq_model_l)
+
+write.csv(summary.gam(eq_model_l)$p.table, here::here("tables","20220726_Model_sensitivity.csv"))
+
+
 
 testdata = data.frame(
                 heg = seq(-60, 25, length=66), 

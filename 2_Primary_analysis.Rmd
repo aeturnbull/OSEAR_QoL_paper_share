@@ -27,15 +27,37 @@ library(DescTools)
 
 ```{r Health expectations met, include=FALSE, message=FALSE}
 
+## Describing expectations
+quantile(df$exp_vas, na.rm=TRUE) 
+  # 0%  25%  50%  75% 100% 
+  # 30   75   85   95  100 
+
+## Describing perceived health
+quantile(df$eqol_vas, na.rm=TRUE) 
+
+### Out of curiosity, what were the expectations of the folks who died? 
+df %>%
+    filter(status_6mo=="dead") %>%
+      ggplot(aes(x=exp_vas)) +
+        geom_histogram(binwidth=1) + 
+            theme_bw()
+
+
 # Creating variables for 1)the difference between perceived and expected and 2)whether health expectations were met
 
 df<-df %>%
         mutate(health_diff=eqol_vas - exp_vas) %>%
-            mutate(health_met=ifelse(health_diff>-9, "Met", "Unmet")) 
+            mutate(health_met=ifelse(health_diff>-9, "Met", "Unmet")) %>%
+              mutate(health_cat=cut(health_diff, 
+                                    breaks=c(-100, -9, 9, 100), 
+                                    labels=c("Unmet", "Met", "Exceeded")))
+
+
 
 df$health_met<-factor(df$health_met)
 
 # table(df$health_met, useNA="ifany")  #70 Met, 69 Unmet, 41 missing
+# table(df$health_cat, useNA="ifany")  #18 Exceeded, 52 Met, 69 Unmet, 41 Missing
 
 ## Look at the distribution of whoqol-bref total scores for people with vs without met health expectations
 hist(df$whoqol_d1_100)
@@ -43,6 +65,20 @@ hist(df$whoqol_d2_100)
 hist(df$whoqol_d3_100)
 hist(df$whoqol_d4_100)
 hist(df$eq_index)  
+
+##Descriptive stats for WHOQOL-BREF
+long_qol <- df %>%
+                select(id, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                    pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+long_qol %>%
+          dplyr::group_by(domain) %>%
+          dplyr::summarise(q25=quantile(score, .25, na.rm=TRUE), 
+                        q50=quantile(score, .50, na.rm=TRUE),
+                        q75=quantile(score, .75, na.rm=TRUE))
+
+
 
 #Test each group for normality
 # https://stat-methods.com/home/mann-whitney-u-r/

@@ -60,37 +60,54 @@ library(mgcv)
 # Remove missing data
 temp_1<-df %>%
           drop_na(heg, whoqol_d1_100) %>%
-            select(whoqol_d1_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+            select(whoqol_d1_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score, eqol_vas)
 
 temp_2<-df %>%
           drop_na(heg, whoqol_d2_100) %>%
-            select(whoqol_d2_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+            select(whoqol_d2_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score, eqol_vas)
 
 temp_3<-df %>%
           drop_na(heg, whoqol_d3_100) %>%
-            select(whoqol_d3_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+            select(whoqol_d3_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score, eqol_vas)
 
 temp_4<-df %>%
           drop_na(heg, whoqol_d4_100) %>%
-            select(whoqol_d4_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score)
+            select(whoqol_d4_100, heg, age, sex, n_ind, mspss_6mo_total, cd_score, eqol_vas)
 
 # Fitting models for each domain score with cubic regression splines for the HEG variable in each. 
 # Will compare to models without the spline for each and then decide whether they improve fit. 
-physical_model_s<-gam(whoqol_d1_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_1)
 
-psych_model_s<-gam(whoqol_d2_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_2)
+#Physical domain
+physical_model_s<-gam(whoqol_d1_100 ~ s(heg, bs="cr") + age + sex + n_ind  + mspss_6mo_total+ cd_score + eqol_vas, family = gaussian, data=temp_1)
 
-social_model_s<-gam(whoqol_d3_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_3)
+physical_model_l<-gam(whoqol_d1_100 ~ heg + age + sex + n_ind  + mspss_6mo_total+ cd_score + eqol_vas, family = gaussian, data=temp_1)
 
-envir_model_s<-gam(whoqol_d4_100 ~ s(heg, bs="cr") + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_4)
+anova(physical_model_s, physical_model_l, test = "Chisq")  # Pr(>Chi) = 0.002
 
-## Looking at summaries of these models, the Effective degrees of freedom (edf) for HEG is 1 in th model of social health.  
-## So, allowing splines does not improve the fit of that model.  We can remove that. 
-social_model<-gam(whoqol_d3_100 ~ heg + age + sex + mspss_6mo_total + n_ind + cd_score, family = gaussian, data=temp_3)
+#Psych domain
+psych_model_s<-gam(whoqol_d2_100 ~ s(heg, bs="cr") + age + sex + n_ind  + mspss_6mo_total+ cd_score + eqol_vas, family = gaussian, data=temp_2)
 
-export_model<-rbind(summary.gam(physical_model_s)$p.table, summary.gam(psych_model_s)$p.table, summary.gam(social_model)$p.table, summary.gam(envir_model_s)$p.table)
+psych_model_l<-gam(whoqol_d2_100 ~ heg + age + sex + n_ind  + mspss_6mo_total+ cd_score + eqol_vas, family = gaussian, data=temp_2)
 
-write.csv(export_model, here::here("tables","20220722_Model_summaries.csv"))
+anova(psych_model_s, psych_model_l, test = "Chisq")  # Pr(>Chi) = 0.05
+
+#Social
+social_model_s<-gam(whoqol_d3_100 ~ s(heg, bs="cr") + age + sex + n_ind  + mspss_6mo_total + cd_score + eqol_vas, family = gaussian, data=temp_3)
+
+social_model_l<-gam(whoqol_d3_100 ~ heg + age + sex + n_ind  + mspss_6mo_total + cd_score + eqol_vas, family = gaussian, data=temp_3)
+
+## edf = 1 in the non-linear model so no need to test
+
+#Environmental
+envir_model_s<-gam(whoqol_d4_100 ~ s(heg, bs="cr") + age + sex + n_ind  + mspss_6mo_total + cd_score + eqol_vas, family = gaussian, data=temp_4)
+
+envir_model_l<-gam(whoqol_d4_100 ~ heg + age + sex + n_ind  + mspss_6mo_total + cd_score + eqol_vas, family = gaussian, data=temp_4)
+
+anova(envir_model_s, envir_model_l, test = "Chisq")  # Pr(>Chi) = 0.11
+
+export_model<-rbind(summary.gam(physical_model_s)$p.table, summary.gam(psych_model_l)$p.table, summary.gam(social_model_l)$p.table, summary.gam(envir_model_l)$p.table)
+
+write.csv(export_model, here::here("tables","20220726_Model_summaries.csv"))
 ```
 
 ```{r Visualizing effects for Physical Health domain, echo=FALSE, include=FALSE}
@@ -98,12 +115,13 @@ write.csv(export_model, here::here("tables","20220722_Model_summaries.csv"))
 # Creating a new dataset with mean/mode values for covariates
 
 testdata = data.frame(
-                heg = seq(-60, 25, length=66), 
+                heg = seq(-60, 25, length=86), 
                 age = mean(physical_model_s$model$age),  #53
                 sex = "male",   
                 n_ind = 12,
-                mspss_6mo_total = mean(physical_model_s$model$mspss_6mo_total), #68 
-                cd_score = mean(physical_model_s$model$cd_score))               #33               
+                mspss_6mo_total = median(physical_model_s$model$mspss_6mo_total), #71
+                eqol_vas = median(physical_model_s$model$eqol_vas),               #80
+                cd_score = median(physical_model_s$model$cd_score))               #35               
                   
 
 physical_predictions = predict(
@@ -116,76 +134,29 @@ physical_preds = data.frame(testdata, physical_predictions) %>%
   mutate(lower = fit - 1.96 * se.fit,
          upper = fit + 1.96 * se.fit, 
          domain = "Physical health")
-```
-
-```{r Visualizing effects for Psychological Health domain, echo=FALSE, include=FALSE}
-
-psych_predictions = predict(
-                          psych_model_s,
-                          newdata = testdata,
-                          type = 'response',
-                          se = TRUE)
-
-psych_preds = data.frame(testdata, psych_predictions) %>%
-  mutate(lower = fit - 1.96 * se.fit,
-         upper = fit + 1.96 * se.fit, 
-         domain = "Psychological health")
-
-```
-
-```{r Visualizing effects for Social Health domain, echo=FALSE, include=FALSE}
-
-social_predictions = predict(
-                          social_model,
-                          newdata = testdata,
-                          type = 'response',
-                          se = TRUE)
-
-social_preds = data.frame(testdata, social_predictions) %>%
-  mutate(lower = fit - 1.96 * se.fit,
-         upper = fit + 1.96 * se.fit, 
-         domain = "Social relationships")
-
-```
-
-```{r Visualizing effects for Environmental Health domain, echo=FALSE, include=FALSE}
-
-envir_predictions = predict(
-                          envir_model_s,
-                          newdata = testdata,
-                          type = 'response',
-                          se = TRUE)
-
-envir_preds = data.frame(testdata, envir_predictions) %>%
-  mutate(lower = fit - 1.96 * se.fit,
-         upper = fit + 1.96 * se.fit, 
-         domain = "Environmental health")
-```
-
-```{r Visualizing the impact of heg, echo=FALSE, include=FALSE}
-all_preds<-rbind(physical_preds, psych_preds, social_preds, envir_preds)
-
-all_preds$domain<-factor(all_preds$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environmental health"))
-
-pred_text<-data.frame(label= c("Adj R2=0.55", "Adj R2=0.43", "Adj R2=0.38", "Adj R2=0.45"), 
-                       domain=c("Physical health", "Psychological health",  "Social relationships",  "Environmental health"), 
-                       x = c(-40, -40, -40, -40), 
-                       y = c(20, 20, 20, 20))
-
-pred_text$domain<-factor(pred_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environmental health"))
 
 
-preds_plot<-ggplot(aes(x = heg, y = fit), data = all_preds) +
+ggplot(aes(x = heg, y = fit), data = physical_preds) +
                         geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'gray92') +
                         geom_line(color = 'blue') + 
                           labs(title="Predicted quality of life for a standardized patient" , 
                                   x="Health Expectation Gap at 6 months", 
-                                  y="Predicted WHOQoL-BREF domain score at 6 months") + 
-                              scale_x_continuous(limits=c(-60, 25), breaks=c(-50, -25, 0, 25)) +
+                                  y="Predicted WHOQoL-BREF physical health domain score") + 
+                              scale_x_continuous(limits=c(-40, 20), breaks=c(-40, -20, 0, 20)) +
                               scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
                               geom_vline(xintercept = 0, linetype="dashed") + 
-                              geom_text(data = pred_text, mapping=aes(x=x, y=y, label=label)) +
                                 theme_bw() + 
-                                  facet_wrap(~domain)
+                                theme(aspect.ratio = 1)
+
+## Example
+signif(physical_preds[which(physical_preds$heg==-35), c("fit", "lower", "upper")], 3)
+#     fit lower upper
+#    63.7  52.9  74.5
+signif(physical_preds[which(physical_preds$heg==0), c("fit", "lower", "upper")], 3)
+#     fit lower upper
+#    79.7  74.9  84.5
+
+
 ```
+
 
