@@ -9,11 +9,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
-```{r loading df tab1 and tab2 from March 28, echo=FALSE}
-load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
-```
-
 ```{r packages, include=FALSE, warning=FALSE}
 library(tidyverse)
 library(here)
@@ -22,6 +17,14 @@ library(dplyr)
 library(janitor)
 library(table1)
 library(finalfit)
+```
+
+
+```{r loading data, echo=FALSE}
+# This next line of code will need to change to reflect where you've saved your project locally.  
+# In this case, the data - named "20220526_OSEAR_cleaning.RData" has been saved within the project on a network drive.
+
+# load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper_share/20220526_OSEAR_cleaning.RData")
 ```
 
 

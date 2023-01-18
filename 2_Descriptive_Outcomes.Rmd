@@ -1,0 +1,176 @@
+---
+title: "2_Descriptive_Outcomes"
+author: "Alison E. Turnbull"
+date: '2022-07-20'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loading data, echo=FALSE}
+# This next line of code will need to change to reflect where you've saved your project locally.  
+# In this case, the data - named "20220526_OSEAR_cleaning.RData" has been saved within the project on a network drive.
+
+# load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper_share/20220526_OSEAR_cleaning.RData")
+```
+
+```{r packages, include=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(plyr)
+library(dplyr)
+library(janitor)
+library(table1)
+library(finalfit)
+library(DescTools)
+library(qqplotr)
+```
+
+```{r Health expectations met, include=FALSE, message=FALSE}
+
+# Results section
+# Expected vs Perceived Health
+
+## Describing expectations
+quantile(df$exp_vas, na.rm=TRUE) 
+  # 0%  25%  50%  75% 100% 
+  # 30   75   85   95  100 
+
+## Describing perceived health
+quantile(df$eqol_vas, na.rm=TRUE) 
+
+### Out of curiosity, what were the expectations of the folks who died? 
+df %>%
+    filter(status_6mo=="dead") %>%
+      ggplot(aes(x=exp_vas)) +
+        geom_histogram(binwidth=1) + 
+            theme_bw()
+
+
+# Creating variables for 1)the difference between perceived and expected and 2)whether health expectations were met
+
+df<-df %>%
+        mutate(health_diff=eqol_vas - exp_vas) %>%
+            mutate(health_met=ifelse(health_diff>-9, "Met", "Unmet")) %>%
+              mutate(health_cat=cut(health_diff, 
+                                    breaks=c(-100, -9, 9, 100), 
+                                    labels=c("Unmet", "Met", "Exceeded")))
+
+
+
+df$health_met<-factor(df$health_met)
+
+table(df$health_met, useNA="ifany")  #70 Met, 69 Unmet, 41 missing
+# table(df$health_cat, useNA="ifany")  #18 Exceeded, 52 Met, 69 Unmet, 41 Missing
+
+```
+
+
+```{r Scatterplot of expected vs perceived health (Fig 1), echo=FALSE}
+
+## Creating the polygons that will shade areas of plot outside the Minimal Clinical Important Difference 
+beat_exp<-tibble(exp_vas=c(0, 91, 0), eqol_vas=c(9, 101, 101))
+exp_unmet<-tibble(exp_vas=c(9, 101, 101), eqol_vas=c(0, 0, 91))  
+## Important to point out that I'm making these areas 1 point smaller than necessary to account for the 1-increment 
+## jitter in the scatter plot. The MCID is 8.
+
+scatter1<-df %>%
+    filter((!is.na(eqol_vas))) %>%               #This means that the sample size is only 139
+      ggplot(aes(x=exp_vas, y = eqol_vas)) +
+        geom_jitter(alpha=.5, shape=16, position = position_jitter(width = 1, height=1)) + 
+            geom_abline(slope=1) +          
+            geom_text(x= 20, y = 95, label="Expectations exceeded", size= 4) +
+            geom_text(x= 40, y = 10, label="Unmet expectations", size = 4) +          
+            geom_polygon(data = beat_exp, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "red", 
+                                alpha=1/5) + 
+            geom_polygon(data = exp_unmet, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "blue", 
+                                alpha=1/5) +       
+                  xlim(c(-1, 101))+
+                  ylim(c(-1, 101))+
+                    labs(title="Expected vs perceived health at 6 months (N = 139)", 
+                         x="Expected 6-month health at hospital discharge", 
+                         y="Perceived health at 6 months")+ 
+                              theme_bw() +
+                              theme(aspect.ratio = 1)
+
+## Note to self - Figure caption should explain that points have been jittered +/- 1 unit in either horizontal and vertical directions and shaded areas have been adjusted by 1 unit to ensure no point extends into a shaded region due to jittering. 
+
+### Lets make a version that highlights the people I'm really worried about...
+### Note that this version isn't in the final manuscript
+worry<-tibble(exp_vas=c(55, 101, 101), eqol_vas=c(0, 0, 76))
+
+scatter2<-df %>%
+    filter((!is.na(eqol_vas))) %>%               #This means that the sample size is only 139
+      ggplot(aes(x=exp_vas, y = eqol_vas)) +
+        geom_jitter(alpha=.5, shape=16, position = position_jitter(width = 1, height=1)) + 
+            geom_abline(slope=1) +          
+            geom_text(x= 20, y = 95, label="Expectations exceeded", size= 4) +
+            geom_text(x= 40, y = 10, label="Unmet expectations", size = 4) +  
+            geom_polygon(data = beat_exp, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "red", 
+                                alpha=1/5) + 
+            geom_polygon(data = exp_unmet, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "blue", 
+                                alpha=1/5) +       
+            geom_polygon(data = worry, 
+                                aes(x = exp_vas, y = eqol_vas), 
+                                fill= "blue", 
+                                alpha=.4) +    
+                  xlim(c(-1, 101))+
+                  ylim(c(-1, 101))+
+                    labs(title="Expected vs perceived health at 6 months (N = 139)", 
+                         x="Expected 6-month health at hospital discharge", 
+                         y="Perceived health at 6 months")+ 
+                              theme_bw() +
+                              theme(aspect.ratio = 1)
+```
+
+
+```{r Histogram of HEG (e-Fig 3), echo=FALSE}
+
+df <- df %>%
+        mutate(heg=eqol_vas - exp_vas)
+
+## Create a histogram of the heg here.
+heg_hist<-df %>%
+              ggplot(aes(x=heg)) + 
+                  geom_histogram(color="black", fill="white") + 
+                    labs(title="Histogram of Health Expectation Gap (N = 139)", 
+                            x="Health expectation gap (HEG) at 6 months") +
+                     theme_bw()
+```
+
+
+```{r WHOQOL-BREF Descriptive, echo=FALSE}
+## Look at the distribution of whoqol-bref total scores
+#hist(df$whoqol_d1_100)
+#hist(df$whoqol_d2_100)
+#hist(df$whoqol_d3_100)
+#hist(df$whoqol_d4_100)
+# hist(df$eq_index)  
+
+##Descriptive stats for WHOQOL-BREF
+long_qol <- df %>%
+                select(id, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
+                    pivot_longer(cols = starts_with("whoqol_"), 
+                                    names_to="domain", 
+                                    values_to="score")
+long_qol %>%
+          dplyr::group_by(domain) %>%
+          dplyr::summarise(q25=quantile(score, .25, na.rm=TRUE), 
+                        q50=quantile(score, .50, na.rm=TRUE),
+                        q75=quantile(score, .75, na.rm=TRUE))
+```
+
+
+
+
+

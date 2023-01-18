@@ -1,5 +1,5 @@
 ---
-title: "3_Unadjusted_unadjusted associations"
+title: "3_Unadjusted associations"
 author: "Alison E. Turnbull"
 date: '2022-07-20'
 output: html_document
@@ -9,8 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r loading df tab1 and tab2 from March 28, echo=FALSE}
-load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
+```{r loading data, echo=FALSE}
+# This next line of code will need to change to reflect where you've saved your project locally.  
+# In this case, the data - named "20220526_OSEAR_cleaning.RData" has been saved within the project on a network drive.
+
+# load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper_share/20220526_OSEAR_cleaning.RData")
 ```
 
 ```{r packages, include=FALSE, warning=FALSE}
@@ -25,13 +28,125 @@ library(qqplotr)
 library(DescTools)
 ```
 
-<!-- From the OSEAR protocol statistical analysis plan
-<!-- Unadjusted associations between WHOQOL‐BREF score and 1) number of achieved ADL/IADL expectations (continuous -->
-<!-- outcome), 2) number of achieved expectations about ADLs/IADLs rated as “Important” or “Very Important” at hospital -->
-<!-- discharge, 3) social support score, and 4) resilience score will be visualized using scatterplots and quantified using -->
-<!-- Pearson’s and Spearman’s correlation coefficients as appropriate. -->
 
-```{r QOL vs number of ADL/IADLs acheived, include=FALSE, message=FALSE}
+```{r Unadjusted comparison of QoL in people with met vs unmet health expectations (Table 2), echo=FALSE}
+
+# Creating variables for 1)the difference between perceived and expected and 2)whether health expectations were met
+
+df<-df %>%
+        mutate(health_diff=eqol_vas - exp_vas) %>%
+            mutate(health_met=ifelse(health_diff>-9, "Met", "Unmet")) %>%
+              mutate(health_cat=cut(health_diff, 
+                                    breaks=c(-100, -9, 9, 100), 
+                                    labels=c("Unmet", "Met", "Exceeded")))
+
+
+
+df$health_met<-factor(df$health_met)
+
+
+#Test each group for normality
+# https://stat-methods.com/home/mann-whitney-u-r/
+
+df %>%
+  group_by(health_met) %>%
+  summarise(`W Stat` = shapiro.test(whoqol_d1_100)$statistic,
+            p.value = shapiro.test(whoqol_d1_100)$p.value)       #W - Stat = 0.95, P<0.00001 - reject normality assumption
+
+# Figure not included in manuscript
+df %>%
+  filter(-is.na(health_met)) %>%
+  ggplot(data = df, mapping = aes(sample = whoqol_d1_100, color = health_met, fill = health_met)) +
+  stat_qq_band(alpha=0.5, conf=0.95, qtype=1, bandType = "boot") +
+  stat_qq_line(identity=TRUE) +
+  stat_qq_point(col="black") +
+  facet_wrap(~ health_met, scales = "free") +
+  labs(x = "Theoretical Quantiles", y = "Sample Quantiles") + theme_bw()
+
+
+
+## Using a Mann-Whitney U test
+# Ho: distribution 1 = distribution 2
+# Ha: distribution 1 != distribution 2
+# Assumptions: 1) Tx groups are independent, 2) response variable is ordinal or continuous, 3) Bath samples are random 
+
+
+# Creating the first two rows of Table 2
+tab2<- df %>% 
+      filter(!is.na(health_met)) %>%
+      group_by(health_met) %>%    
+       dplyr::summarise(mean_physical = signif(mean(whoqol_d1_100, na.rm=TRUE), 2), 
+                phys_IQR = paste0("(", quantile(whoqol_d1_100, .25, na.rm=TRUE), " - ", quantile(whoqol_d1_100, .75, na.rm=TRUE), ")"), 
+                mean_psych    = signif(mean(whoqol_d2_100, na.rm=TRUE), 2), 
+                psych_IQR = paste0("(", quantile(whoqol_d2_100, .25, na.rm=TRUE), " - ", quantile(whoqol_d1_100, .75, na.rm=TRUE), ")"), 
+                mean_social    = signif(mean(whoqol_d3_100, na.rm=TRUE), 2), 
+                social_IQR = paste0("(", quantile(whoqol_d3_100, .25, na.rm=TRUE), " - ", quantile(whoqol_d1_100, .75, na.rm=TRUE), ")"), 
+                mean_environment    = signif(mean(whoqol_d4_100, na.rm=TRUE), 2), 
+                envir_IQR = paste0("(", quantile(whoqol_d4_100, .25, na.rm=TRUE), " - ", quantile(whoqol_d1_100, .75, na.rm=TRUE), ")"))
+
+
+#Perform the Mann-Whitney U test
+# Physical health
+q1<-wilcox.test(whoqol_d1_100 ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(q1)
+
+
+# data:  whoqol_d1_100 by health_met
+# W = 3473, p-value = 1.117e-06
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#  12.00003 25.00002
+# sample estimates:
+# difference in location - Hodges Lehmann Estimator
+#               19.00005 
+
+
+# Psychological health
+q2<-wilcox.test(whoqol_d2_100 ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(q2)
+
+# data:  whoqol_d2_100 by health_met
+# W = 3221, p-value = 0.0001421
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#   5.999947 17.999920
+# sample estimates:
+# difference in location 
+#               12.00004
+
+# Social relationships
+q3<-wilcox.test(whoqol_d3_100 ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(q3)
+ 
+# data:  whoqol_d3_100 by health_met
+# W = 2843.5, p-value = 0.01921
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#  2.632120e-06 1.299995e+01
+# sample estimates:
+# difference in location 
+#               6.000021 
+
+# Environmental health
+q4<-wilcox.test(whoqol_d4_100 ~ health_met, data=df, na.rm=TRUE, paired=FALSE, exact=FALSE, conf.int=TRUE)
+print(q4)
+ 
+# data:  whoqol_d4_100 by health_met
+# W = 3158.5, p-value = 0.000427
+# alternative hypothesis: true location shift is not equal to 0
+# 95 percent confidence interval:
+#   5.999978 13.000004
+# sample estimates:
+# difference in location 
+#               11.99994 
+
+```
+
+
+
+# The rest of code in this .Rmd file creates e-Figures 4 - 8.
+
+```{r QOL vs number of ADL/IADLs acheived (e-Fig 4), include=FALSE, message=FALSE}
 
 # Calculating the number of independent I/ADLs at 6 months
 ind_ADL<- df %>%
@@ -87,7 +202,7 @@ IADLS_v_QoL
 
 ```
 
-```{r QOL vs MSPSS score, include=FALSE, message=FALSE}
+```{r QOL vs MSPSS score (e-Fig 5), include=FALSE, message=FALSE}
 
 # Creating a long version of dataframe
 long_mspss <- df %>%
@@ -132,7 +247,7 @@ MSPSS_v_QoL
 ```
 
 
-```{r QOL vs resilience score, include=FALSE, message=FALSE}
+```{r QOL vs resilience score (e-Fig 6), include=FALSE, message=FALSE}
 # Creating a long version of dataframe
 long_cd <- df %>%
                 select(id, cd_score, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
@@ -174,7 +289,7 @@ CDRisc_v_QoL<-long_cd %>%
 CDRisc_v_QoL
 ```
 
-```{r QOL vs age, include=FALSE, message=FALSE}
+```{r QOL vs age (e-Fig 7), include=FALSE, message=FALSE}
 # Creating a long version of dataframe
 age_long <- df %>%
             select(id, age, whoqol_d1_100, whoqol_d2_100, whoqol_d3_100, whoqol_d4_100) %>%
@@ -219,7 +334,7 @@ AGE_vs_QoL<-age_long %>%
 ```
 
 
-```{r gender vs QoL, include=FALSE, message=FALSE}
+```{r gender vs QoL (e-Fig 8), include=FALSE, message=FALSE}
 
 # Creating a long version of dataframe
 sex_long <- df %>%
@@ -241,101 +356,12 @@ gender_plot<-ggplot(sex_long, aes(x = sex, y =score)) +
 ```
 
 
-<!-- For our secondary analysis, we will calculate the difference between each patient’s expected health‐related quality of -->
-<!-- life score at hospital discharge and the actual health‐related quality of life score measured at 6 months using the EQ‐5D -->
-<!-- VAS. The distribution of this statistic will be displayed using a histogram and cumulative rank scatterplot (quantile plot) -->
-<!-- and summarized using descriptive statistics (quantiles, mean, range). -->
+```{r QoL vs HEG - Figure 2, include=FALSE, message=FALSE}
 
-
-
-```{r Scatterplot of expected vs perceived health, echo=FALSE}
-
-## Creating the polygons that will shade areas of plot outside the Minimal Clinical Important Difference 
-beat_exp<-tibble(exp_vas=c(0, 91, 0), eqol_vas=c(9, 101, 101))
-exp_unmet<-tibble(exp_vas=c(9, 101, 101), eqol_vas=c(0, 0, 91))  
-## Important to point out that I'm making these areas 1 point smaller than necessary to account for the 1-increment 
-## jitter in the scatter plot. The MCID is 8.
-
-scatter1<-df %>%
-    filter((!is.na(eqol_vas))) %>%               #This means that the sample size is only 139
-      ggplot(aes(x=exp_vas, y = eqol_vas)) +
-        geom_jitter(alpha=.5, shape=16, position = position_jitter(width = 1, height=1)) + 
-            geom_abline(slope=1) +          
-            geom_text(x= 20, y = 95, label="Expectations exceeded", size= 4) +
-            geom_text(x= 40, y = 10, label="Unmet expectations", size = 4) +          
-            geom_polygon(data = beat_exp, 
-                                aes(x = exp_vas, y = eqol_vas), 
-                                fill= "red", 
-                                alpha=1/5) + 
-            geom_polygon(data = exp_unmet, 
-                                aes(x = exp_vas, y = eqol_vas), 
-                                fill= "blue", 
-                                alpha=1/5) +       
-                  xlim(c(-1, 101))+
-                  ylim(c(-1, 101))+
-                    labs(title="Expected vs perceived health at 6 months (N = 139)", 
-                         x="Expected 6-month health at hospital discharge", 
-                         y="Perceived health at 6 months")+ 
-                              theme_bw() +
-                              theme(aspect.ratio = 1)
-
-## Note to self - read up on how the MCID for EQ-VAS was estimated.
-## Note to self - Figure caption should explain that points have been jittered +/- 1 unit in either horizontal and vertical directions and shaded areas have been adjusted by 1 unit to ensure no point extends into a shaded region due to jittering. 
-
-### Lets make a version that highlights the people I'm really worried about...
-worry<-tibble(exp_vas=c(55, 101, 101), eqol_vas=c(0, 0, 76))
-
-scatter2<-df %>%
-    filter((!is.na(eqol_vas))) %>%               #This means that the sample size is only 139
-      ggplot(aes(x=exp_vas, y = eqol_vas)) +
-        geom_jitter(alpha=.5, shape=16, position = position_jitter(width = 1, height=1)) + 
-            geom_abline(slope=1) +          
-            geom_text(x= 20, y = 95, label="Expectations exceeded", size= 4) +
-            geom_text(x= 40, y = 10, label="Unmet expectations", size = 4) +  
-            geom_polygon(data = beat_exp, 
-                                aes(x = exp_vas, y = eqol_vas), 
-                                fill= "red", 
-                                alpha=1/5) + 
-            geom_polygon(data = exp_unmet, 
-                                aes(x = exp_vas, y = eqol_vas), 
-                                fill= "blue", 
-                                alpha=1/5) +       
-            geom_polygon(data = worry, 
-                                aes(x = exp_vas, y = eqol_vas), 
-                                fill= "blue", 
-                                alpha=.4) +    
-                  xlim(c(-1, 101))+
-                  ylim(c(-1, 101))+
-                    labs(title="Expected vs perceived health at 6 months (N = 139)", 
-                         x="Expected 6-month health at hospital discharge", 
-                         y="Perceived health at 6 months")+ 
-                              theme_bw() +
-                              theme(aspect.ratio = 1)
-```
-
-
-```{r QoL vs HEG, include=FALSE, message=FALSE}
-
+#Calculating the health expectation gap (HEG)
 df <- df %>%
         mutate(heg=eqol_vas - exp_vas)
 
-## Create a histogram of the heg here.
-heg_hist<-df %>%
-              ggplot(aes(x=heg)) + 
-                  geom_histogram(color="black", fill="white") + 
-                    labs(title="Histogram of Health Expectation Gap (N = 139)", 
-                            x="Health expectation gap (HEG) at 6 months") +
-                     theme_bw()
-
-
-## Summary heg statistics: 
-quantile(df$heg, na.rm = TRUE)
-
- #  0%  25%  50%  75% 100% 
- # -94  -20   -8    0   40 
-
-mean(df$heg, na.rm=TRUE)
-# -11.61871
 
 # Creating a long version of dataframe
 heg_long <- df %>%
@@ -359,7 +385,7 @@ heg_text<-data.frame(label= c("rho=0.49", "rho=0.40", "rho=0.29", "rho=0.37"),
                        x = c(30, 30, 30, 30), 
                        y = c(10, 10, 10, 10))
 
-heg_text$domain<-factor(cd_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"))
+heg_text$domain<-factor(heg_text$domain, levels=c("Physical health", "Psychological health",  "Social relationships",  "Environment health"))
 
 
 # Faceted scatterplot

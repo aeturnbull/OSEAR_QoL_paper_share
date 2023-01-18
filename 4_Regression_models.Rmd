@@ -9,9 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r loading data, echo=FALSE}
+# This next line of code will need to change to reflect where you've saved your project locally.  
+# In this case, the data - named "20220526_OSEAR_cleaning.RData" has been saved within the project on a network drive.
 
-```{r loading df tab1 and tab2 from March 28, echo=FALSE}
-load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper/20220526_OSEAR_cleaning.RData")
+# load("H:/K01 research/Aim 3 - Cohort Study/OSEAR data/OSEAR_QoL_paper_share/20220526_OSEAR_cleaning.RData")
 ```
 
 ```{r packages, include=FALSE, warning=FALSE}
@@ -24,10 +26,6 @@ library(table1)
 library(finalfit)
 ```
 
-<!-- QoL in patents with vs without fully achieved -->
-<!-- expectations will also be compared using multivariable linear regression. To avoid over‐fitting, the regression analysis -->
-<!-- will be adjusted for age, change in social support, resilience, employment status, and ADLs/IADLs performance at 6 -->
-<!-- months. -->
 
 ```{r, number of independent i/adls, echo=FALSE, include=FALSE}
 ind_ADL<- df %>%
@@ -44,7 +42,7 @@ names(df)[new_var]<-"n_ind"
 ```
 
 
-```{r Create HEG, echo=FALSE, include=FALSE}
+```{r Create HEG variable, echo=FALSE, include=FALSE}
 
 #Calculating the health expectation gap (HEG)
 df <- df %>%
@@ -53,7 +51,7 @@ df <- df %>%
 
 <!-- Guidance : https://m-clark.github.io/generalized-additive-models/application.html#single-predictor -->
 
-```{r modeling WHOQOL-Physical, echo=FALSE, include=FALSE}
+```{r modeling WHOQOL-Physical (e-Table 2), echo=FALSE, include=FALSE}
 library(gam)
 library(mgcv)
 
@@ -110,17 +108,17 @@ export_model<-rbind(summary.gam(physical_model_s)$p.table, summary.gam(psych_mod
 write.csv(export_model, here::here("tables","20220726_Model_summaries.csv"))
 ```
 
-```{r Visualizing effects for Physical Health domain, echo=FALSE, include=FALSE}
+```{r Visualizing effects for Physical Health domain in a prototypical participant (Fig 3), echo=FALSE, include=FALSE}
 
 # Creating a new dataset with mean/mode values for covariates
 
 testdata = data.frame(
-                heg = seq(-60, 25, length=86), 
+                heg = seq(-35, 15, length=51), 
                 age = mean(physical_model_s$model$age),  #53
                 sex = "male",   
                 n_ind = 12,
                 mspss_6mo_total = median(physical_model_s$model$mspss_6mo_total), #71
-                eqol_vas = median(physical_model_s$model$eqol_vas),               #80
+                eqol_vas = 65,                #Note, setting this to 50 allows HEG to be a large range of values
                 cd_score = median(physical_model_s$model$cd_score))               #35               
                   
 
@@ -136,25 +134,27 @@ physical_preds = data.frame(testdata, physical_predictions) %>%
          domain = "Physical health")
 
 
-ggplot(aes(x = heg, y = fit), data = physical_preds) +
+fig3<-ggplot(aes(x = heg, y = fit), data = physical_preds) +
                         geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'gray92') +
                         geom_line(color = 'blue') + 
                           labs(title="Predicted quality of life for a standardized patient" , 
                                   x="Health Expectation Gap at 6 months", 
                                   y="Predicted WHOQoL-BREF physical health domain score") + 
-                              scale_x_continuous(limits=c(-40, 20), breaks=c(-40, -20, 0, 20)) +
-                              scale_y_continuous(limits=c(-1, 101), breaks=c(0, 25, 50, 75, 100)) +
+                              scale_x_continuous(limits=c(-35, 15), breaks=c(-30, -20, -10, 0, 10)) +
+                              scale_y_continuous(limits=c(39, 101), breaks=c(50, 60, 70, 80, 90, 100)) +
                               geom_vline(xintercept = 0, linetype="dashed") + 
                                 theme_bw() + 
                                 theme(aspect.ratio = 1)
 
-## Example
+
+## Example patient
 signif(physical_preds[which(physical_preds$heg==-35), c("fit", "lower", "upper")], 3)
 #     fit lower upper
-#    63.7  52.9  74.5
+#    55.5  45.8  65.1
+
 signif(physical_preds[which(physical_preds$heg==0), c("fit", "lower", "upper")], 3)
 #     fit lower upper
-#    79.7  74.9  84.5
+#    71.5  65.2  77.8
 
 
 ```
